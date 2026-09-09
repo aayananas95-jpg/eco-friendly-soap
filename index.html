@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NO CAP CLEAN — Artisanal Soap, Poured Small-Batch</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js & OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340..900;1,9..144,340..900&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --ink:#171712;
+      --linen:#F1ECDE;
+      --linen-2:#E8E1CE;
+      --moss:#39472E;
+      --moss-deep:#232B1B;
+      --clay:#B5623A;
+      --clay-deep:#8F4A2A;
+      --sage:#AEBB97;
+      --gold:#C79A4B;
+    }
+    body{ background:var(--linen); color:var(--ink); font-family:'Instrument Sans', sans-serif; }
+    .font-display{ font-family:'Fraunces', serif; }
+    .font-mono-data{ font-family:'Roboto Mono', monospace; }
+
+    .glass{
+      background: rgba(241,236,222,0.62);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+    .glass-dark{
+      background: rgba(23,23,18,0.55);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+    .editable-active{ outline: 2px dashed var(--clay); outline-offset: 4px; cursor: text; border-radius: 4px; }
+    #canvas-container{ width:100%; height:100%; position:absolute; inset:0; z-index:1; }
+
+    * { transition-property: color, background-color, border-color, transform, opacity, box-shadow; transition-timing-function: cubic-bezier(0.4,0,0.2,1); transition-duration: 260ms; }
+
+    ::selection{ background: var(--sage); color: var(--ink); }
+
+    .grain{
+      position:absolute; inset:0; pointer-events:none; opacity:0.05; mix-blend-mode:multiply;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    .card-ticket{
+      background: var(--linen-2);
+      border: 1px solid rgba(23,23,18,0.12);
+      position: relative;
+    }
+    .card-ticket::before{
+      content:"";
+      position:absolute; left:0; right:0; top: 15.5rem;
+      border-top: 1px dashed rgba(23,23,18,0.22);
+    }
+    .notch{
+      position:absolute; width:1.1rem; height:1.1rem; background:var(--linen); border-radius:999px; top:14.95rem;
+    }
+
+    .btn-primary{ background:var(--ink); color:var(--linen); }
+    .btn-primary:hover{ background:var(--moss); }
+    .btn-clay{ background:var(--clay); color:var(--linen); }
+    .btn-clay:hover{ background:var(--clay-deep); }
+
+    .underline-accent{
+      background-image: linear-gradient(var(--clay), var(--clay));
+      background-repeat:no-repeat; background-size:100% 3px; background-position:0 92%;
+    }
+
+    input[type="text"], input[type="email"], input[type="number"], textarea{
+      font-family:'Instrument Sans', sans-serif;
+    }
+
+    #tx-canvas-wrap{ width:100%; height:220px; position:relative; }
+    #tx-canvas-wrap canvas{ display:block; }
+
+    @media (prefers-reduced-motion: reduce){
+      *{ transition:none !important; animation:none !important; }
+    }
+  </style>
+</head>
+<body class="antialiased relative min-h-screen overflow-x-hidden">
+
+  <!-- Admin Bar -->
+  <div id="admin-bar" class="hidden text-white px-6 py-2.5 flex justify-between items-center text-sm sticky top-0 z-50 border-b border-white/10 shadow-lg" style="background:var(--moss-deep);">
+    <div class="flex items-center gap-3">
+      <span class="px-2.5 py-0.5 rounded-full font-mono-data text-[11px] font-bold" style="background:var(--clay); color:var(--linen);">Admin mode</span>
+      <span class="text-xs text-white/60 hidden sm:inline">Double-click text to edit &nbsp;·&nbsp; click an image to swap it</span>
+    </div>
+    <div class="flex gap-3">
+      <button onclick="openAddSoapModal()" class="px-3.5 py-1.5 rounded-lg text-xs font-medium shadow-md active:scale-95 transition" style="background:var(--clay); color:var(--linen);">+ Add soap</button>
+      <button onclick="toggleAdminMode()" class="bg-white/10 hover:bg-white/20 text-white px-3.5 py-1.5 rounded-lg text-xs font-medium active:scale-95 transition">Exit admin</button>
+    </div>
+  </div>
+
+  <!-- Header Navigation -->
+  <nav class="relative z-20 max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
+    <div class="flex items-center gap-3.5 group cursor-pointer">
+      <img id="site-logo" src="https://images.unsplash.com/photo-1607006344380-b6775a0824a7?w=100&auto=format&fit=crop&q=80" alt="Logo" class="w-11 h-11 rounded-xl object-cover shadow-sm group-hover:scale-105 transition" onclick="checkImageEdit(this)">
+      <h1 id="site-title" class="text-2xl font-display font-bold tracking-tight" contenteditable="false">NO CAP CLEAN</h1>
+    </div>
+    <div class="flex items-center gap-3 sm:gap-6">
+      <button onclick="openBatchModal()" class="text-sm font-medium hover:opacity-70 transition flex items-center gap-1.5 px-3 py-2 rounded-xl" style="color:var(--moss);">
+        <i data-lucide="qr-code" class="w-4 h-4"></i> <span class="hidden sm:inline">Verify a batch</span>
+      </button>
+      <button onclick="toggleAdminPrompt()" class="text-xs opacity-40 hover:opacity-80 transition px-2 py-1">Admin login</button>
+      <button onclick="toggleCart()" class="relative p-2.5 bg-white/70 hover:bg-white rounded-xl shadow-sm hover:shadow-md border border-black/5 transition active:scale-95">
+        <i data-lucide="shopping-bag" class="w-5 h-5" style="color:var(--ink);"></i>
+        <span id="cart-count" class="absolute -top-1.5 -right-1.5 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold shadow-md" style="background:var(--clay);">0</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="relative h-[88vh] flex items-center justify-center overflow-hidden">
+    <div id="canvas-container"></div>
+    <div class="grain"></div>
+
+    <div class="relative z-10 text-center max-w-3xl px-6 pointer-events-none">
+      <span id="hero-tag" class="glass border border-black/5 text-xs font-medium px-4 py-2 rounded-full mb-7 inline-block pointer-events-auto shadow-sm" style="color:var(--moss);">
+        A bar you can trace to its batch
+      </span>
+      <h2 id="hero-heading" class="text-6xl sm:text-8xl font-display font-bold mb-6 leading-[0.98] tracking-tight pointer-events-auto">
+        Soap, made<br/>without the noise.
+      </h2>
+      <p id="hero-sub" class="text-base sm:text-lg mb-9 pointer-events-auto max-w-md mx-auto font-light leading-relaxed opacity-70">
+        Drag the bar to turn it over. Pop a bubble if one drifts close. Every lot ships with a code you can look up.
+      </p>
+      <div class="flex flex-col sm:flex-row justify-center items-center gap-3.5 pointer-events-auto">
+        <a href="#catalog" class="w-full sm:w-auto btn-primary px-8 py-4 rounded-xl font-medium transition shadow-xl active:scale-95">See the bars</a>
+        <button onclick="toggleChat()" class="w-full sm:w-auto glass hover:bg-white/80 px-7 py-4 rounded-xl font-medium shadow-md transition border border-black/5 flex items-center justify-center gap-2.5 active:scale-95">
+          <i data-lucide="sparkles" class="w-4 h-4" style="color:var(--clay);"></i> Find my match
+        </button>
+      </div>
+    </div>
+
+    <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 text-[11px] tracking-wide opacity-40 font-medium flex items-center gap-2 pointer-events-none">
+      <i data-lucide="move-3d" class="w-4 h-4"></i> Drag to rotate
+    </div>
+  </section>
+
+  <!-- Product Catalog -->
+  <section id="catalog" class="max-w-7xl mx-auto px-6 py-24 relative z-10">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-14 gap-5">
+      <div>
+        <span class="text-sm font-medium" style="color:var(--clay);">Small-batch formulas</span>
+        <h3 class="text-4xl font-display font-bold mt-1.5">Three bars, three skins</h3>
+      </div>
+      <p class="text-sm opacity-60 max-w-xs leading-relaxed">No sulfates, no synthetic fragrance, no filler oils — just what's on the label, cold-pressed and cured for six weeks.</p>
+    </div>
+    <div id="product-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+  </section>
+
+  <!-- AI Chat Drawer -->
+  <div id="chat-drawer" class="fixed right-0 top-0 h-full w-full max-w-md z-50 transform translate-x-full transition-transform duration-500 ease-in-out flex flex-col border-l border-black/5 shadow-2xl" style="background:rgba(241,236,222,0.98); backdrop-filter:blur(24px);">
+    <div class="p-5 text-white flex justify-between items-center" style="background:var(--ink);">
+      <div class="flex items-center gap-2.5">
+        <div class="w-2 h-2 rounded-full animate-pulse" style="background:var(--gold);"></div>
+        <h4 class="font-display font-bold text-lg">Skin match consultant</h4>
+      </div>
+      <button onclick="toggleChat()" class="opacity-60 hover:opacity-100 p-1 rounded-lg transition"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <div id="chat-messages" class="flex-1 p-5 overflow-y-auto space-y-3">
+      <div class="bg-white p-4 rounded-2xl shadow-sm border border-black/5 max-w-[88%] text-sm leading-relaxed">
+        Tell me what your skin's dealing with — dryness, sensitivity, breakouts — and I'll point you to the right bar.
+      </div>
+    </div>
+    <div class="p-4 bg-white/60 border-t border-black/5 flex gap-2">
+      <input id="chat-input" type="text" placeholder="e.g., sensitive and dry..." class="flex-1 px-4 py-3 text-sm bg-white border border-black/10 rounded-xl focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);" onkeydown="if(event.key==='Enter') sendChatMessage()">
+      <button onclick="sendChatMessage()" class="btn-primary px-5 py-3 rounded-xl text-sm font-medium transition active:scale-95">Ask</button>
+    </div>
+  </div>
+
+  <!-- Cart Drawer -->
+  <div id="cart-drawer" class="fixed right-0 top-0 h-full w-full max-w-md z-50 transform translate-x-full transition-transform duration-500 ease-in-out flex flex-col border-l border-black/5 shadow-2xl" style="background:rgba(241,236,222,0.98); backdrop-filter:blur(24px);">
+    <div class="p-5 text-white flex justify-between items-center" style="background:var(--ink);">
+      <h4 class="font-display font-bold text-lg">Your bag</h4>
+      <button onclick="toggleCart()" class="opacity-60 hover:opacity-100 p-1 rounded-lg transition"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <div id="cart-items" class="flex-1 p-5 overflow-y-auto space-y-3"></div>
+    <div class="p-6 border-t border-black/10 bg-white/40">
+      <div class="flex justify-between items-center mb-6">
+        <span class="text-sm opacity-60">Subtotal</span>
+        <span id="cart-subtotal" class="font-display font-bold text-2xl">Rs 0</span>
+      </div>
+      <button onclick="openCheckout()" class="w-full btn-primary py-4 rounded-xl font-medium transition shadow-lg active:scale-95">Proceed to checkout</button>
+    </div>
+  </div>
+
+  <!-- Dynamic Modal -->
+  <div id="modal-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-md z-50 hidden flex items-center justify-center p-4 transition-opacity duration-300">
+    <div id="modal-content" class="rounded-3xl max-w-lg w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto relative border border-black/5" style="background:var(--linen);"></div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       STATE — prices are in PKR (whole rupees)
+       ========================================================================== */
+    let soaps = [
+      { id: 1, name: "Activated Charcoal Bar", type: "Acne-Prone", price: 1450, ingredients: "Activated Charcoal, Tea Tree Oil, Coconut Oil", benefits: "Deep detoxifying cleanser that balances oil and soothes breakouts.", batch: "LOT-2026-01", img: "https://images.unsplash.com/photo-1607006344380-b6775a0824a7?w=500&auto=format&fit=crop&q=80" },
+      { id: 2, name: "Honey & Wild Oat Hydrator", type: "Dry", price: 1650, ingredients: "Raw Organic Honey, Colloidal Oats, Shea Butter", benefits: "Gently exfoliates while sealing in natural moisture for dry skin.", batch: "LOT-2026-02", img: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80" },
+      { id: 3, name: "Aloe & Chamomile Calmer", type: "Sensitive", price: 1550, ingredients: "Pure Aloe Vera, Roman Chamomile, Goat Milk", benefits: "Ultra-calming formula designed to minimize redness and irritation.", batch: "LOT-2026-03", img: "https://images.unsplash.com/photo-1600857544200-b2f666a9a2ec?w=500&auto=format&fit=crop&q=80" }
+    ];
+    let cart = [];
+    let isAdmin = false;
+
+    function pkr(n){ return "Rs " + Math.round(n).toLocaleString('en-PK'); }
+
+    window.addEventListener("load", () => {
+      if (window.lucide) lucide.createIcons();
+      initAdvanced3DScene();
+      renderCatalog();
+    });
+
+    /* ==========================================================================
+       PRO-LEVEL THREE.JS 3D ENGINE — HERO SOAP BAR
+       ========================================================================== */
+    let scene, camera, renderer, soapGroup, bubbles = [], raycaster, mouse;
+
+    function initAdvanced3DScene() {
+      const container = document.getElementById("canvas-container");
+      if (!container || !window.THREE) return;
+
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(38, container.clientWidth / container.clientHeight, 0.1, 1000);
+      camera.position.set(0, 0, 7.5);
+
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+
+      soapGroup = new THREE.Group();
+
+      const width = 2.4, height = 1.4, depth = 0.7, radius = 0.18;
+      const shape = new THREE.Shape();
+      shape.moveTo(-width/2 + radius, -height/2);
+      shape.lineTo(width/2 - radius, -height/2);
+      shape.quadraticCurveTo(width/2, -height/2, width/2, -height/2 + radius);
+      shape.lineTo(width/2, height/2 - radius);
+      shape.quadraticCurveTo(width/2, height/2, width/2 - radius, height/2);
+      shape.lineTo(-width/2 + radius, height/2);
+      shape.quadraticCurveTo(-width/2, height/2, -width/2, height/2 - radius);
+      shape.lineTo(-width/2, -height/2 + radius);
+      shape.quadraticCurveTo(-width/2, -height/2, -width/2 + radius, -height/2);
+
+      const extrudeSettings = { steps: 2, depth: depth, bevelEnabled: true, bevelThickness: 0.1, bevelSize: 0.1, bevelSegments: 8 };
+      const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+      geometry.center();
+
+      const canvas = document.createElement("canvas");
+      canvas.width = 512; canvas.height = 512;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#39472E";
+      ctx.fillRect(0, 0, 512, 512);
+      for(let i=0; i<3000; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+        ctx.fillRect(Math.random()*512, Math.random()*512, Math.random()*3+1, Math.random()*3+1);
+      }
+      const bumpTexture = new THREE.CanvasTexture(canvas);
+      bumpTexture.wrapS = THREE.RepeatWrapping;
+      bumpTexture.wrapT = THREE.RepeatWrapping;
+
+      const soapMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0x39472E, emissive: 0x151d0f, roughness: 0.28, metalness: 0.05,
+        transmission: 0.35, opacity: 0.98, transparent: true, ior: 1.45,
+        clearcoat: 0.3, clearcoatRoughness: 0.2, bumpMap: bumpTexture, bumpScale: 0.015
+      });
+
+      const soapMesh = new THREE.Mesh(geometry, soapMaterial);
+      soapMesh.castShadow = true;
+      soapMesh.receiveShadow = true;
+      soapGroup.add(soapMesh);
+
+      const logoGeo = new THREE.PlaneGeometry(1.4, 0.4);
+      const logoCanvas = document.createElement("canvas");
+      logoCanvas.width = 256; logoCanvas.height = 64;
+      const lCtx = logoCanvas.getContext("2d");
+      lCtx.fillStyle = "rgba(0,0,0,0)";
+      lCtx.fillRect(0, 0, 256, 64);
+      lCtx.fillStyle = "#EFE6C9";
+      lCtx.font = "bold 24px serif";
+      lCtx.textAlign = "center";
+      lCtx.textBaseline = "middle";
+      lCtx.fillText("NO CAP CLEAN", 128, 32);
+      const logoTex = new THREE.CanvasTexture(logoCanvas);
+      const logoMat = new THREE.MeshBasicMaterial({ map: logoTex, transparent: true, opacity: 0.65 });
+      const logoMesh = new THREE.Mesh(logoGeo, logoMat);
+      logoMesh.position.z = depth/2 + 0.105;
+      soapGroup.add(logoMesh);
+
+      scene.add(soapGroup);
+
+      const shadowPlaneGeo = new THREE.PlaneGeometry(15, 15);
+      const shadowPlaneMat = new THREE.ShadowMaterial({ opacity: 0.15 });
+      const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
+      shadowPlane.position.y = -2.2;
+      shadowPlane.rotation.x = -Math.PI / 2;
+      shadowPlane.receiveShadow = true;
+      scene.add(shadowPlane);
+
+      const bubbleGeo = new THREE.SphereGeometry(0.1, 32, 32);
+      const bubbleMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transmission: 0.95, opacity: 1, transparent: true, roughness: 0, ior: 1.1, reflectivity: 0.9, clearcoat: 1 });
+
+      function createBubble() { const bubble = new THREE.Mesh(bubbleGeo, bubbleMat.clone()); resetBubble(bubble); scene.add(bubble); bubbles.push(bubble); }
+      function resetBubble(b) {
+        b.position.set((Math.random() - 0.5) * 8, -3.5 - Math.random() * 2, (Math.random() - 0.5) * 4);
+        const s = 0.5 + Math.random() * 1.5;
+        b.scale.set(s, s, s);
+        b.userData = { speedY: 0.006 + Math.random() * 0.012, wobbleSpeed: 1 + Math.random() * 2, wobbleAmp: 0.003 + Math.random() * 0.006, popping: false };
+      }
+      for (let i = 0; i < 45; i++) createBubble();
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+      scene.add(ambientLight);
+      const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+      keyLight.position.set(5, 8, 5);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.width = 1024;
+      keyLight.shadow.mapSize.height = 1024;
+      scene.add(keyLight);
+      const rimLight = new THREE.PointLight(0xC79A4B, 2, 10);
+      rimLight.position.set(-4, 3, -2);
+      scene.add(rimLight);
+      const fillLight = new THREE.DirectionalLight(0xEFE6C9, 0.5);
+      fillLight.position.set(-5, -2, 2);
+      scene.add(fillLight);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.enableZoom = false;
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 1.2;
+
+      window.addEventListener("click", (e) => {
+        const rect = renderer.domElement.getBoundingClientRect();
+        if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(bubbles);
+        if (intersects.length > 0) {
+          const popped = intersects[0].object;
+          if (!popped.userData.popping) {
+            popped.userData.popping = true;
+            let f = 0;
+            function popAnim() {
+              f++;
+              popped.scale.multiplyScalar(1.2);
+              popped.material.opacity -= 0.2;
+              if (f < 5) requestAnimationFrame(popAnim);
+              else { resetBubble(popped); popped.material.opacity = 1; popped.userData.popping = false; }
+            }
+            popAnim();
+          }
+        }
+      });
+
+      const clock = new THREE.Clock();
+      function animate() {
+        requestAnimationFrame(animate);
+        const elapsed = clock.getElapsedTime();
+        controls.update();
+        soapGroup.position.y = Math.sin(elapsed * 1.5) * 0.12;
+        bubbles.forEach(b => {
+          if (!b.userData.popping) {
+            b.position.y += b.userData.speedY;
+            b.position.x += Math.sin(elapsed * b.userData.wobbleSpeed) * b.userData.wobbleAmp;
+            if (b.position.y > 4.5) resetBubble(b);
+          }
+        });
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      window.addEventListener("resize", () => {
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+      });
+    }
+
+    /* ==========================================================================
+       CATALOG
+       ========================================================================== */
+    function renderCatalog() {
+      const grid = document.getElementById("product-grid");
+      if (soaps.length === 0) {
+        grid.innerHTML = `<div class="col-span-full text-center py-12 opacity-40">No soap variants yet. Add one in admin mode.</div>`;
+        return;
+      }
+      grid.innerHTML = soaps.map(soap => `
+        <div class="card-ticket rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col group relative">
+          ${isAdmin ? `
+            <button onclick="removeSoap(${soap.id})" class="absolute top-4 right-4 z-20 bg-rose-700 hover:bg-rose-800 text-white p-2 rounded-lg shadow-lg transition active:scale-90 flex items-center justify-center gap-1 text-xs font-semibold">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          ` : ''}
+          <div class="relative overflow-hidden h-60">
+            <img src="${soap.img}" class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-700 cursor-pointer" onclick="checkImageEdit(this, ${soap.id})">
+            <span class="absolute top-4 left-4 text-[11px] font-medium px-3 py-1 rounded-full shadow-sm" style="background:rgba(241,236,222,0.92); color:var(--moss);">${soap.type}</span>
+          </div>
+          <div class="notch" style="left:-0.55rem;"></div>
+          <div class="notch" style="right:-0.55rem;"></div>
+          <div class="p-7 flex-1 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-start mb-2 gap-3">
+                <h4 class="font-display font-bold text-xl">${soap.name}</h4>
+                <span class="font-display font-bold text-lg whitespace-nowrap" style="color:var(--clay);">${pkr(soap.price)}</span>
+              </div>
+              <p class="text-xs opacity-60 mb-3 leading-relaxed"><strong>Ingredients:</strong> ${soap.ingredients}</p>
+              <p class="text-xs opacity-75 mb-6 leading-relaxed">${soap.benefits}</p>
+            </div>
+            <div class="flex items-center justify-between pt-4 border-t border-black/10">
+              <span class="text-[10px] opacity-40 font-mono-data tracking-wide">${soap.batch}</span>
+              <button onclick="addToCart(${soap.id})" class="btn-primary text-xs px-5 py-2.5 rounded-lg transition font-medium shadow-md active:scale-95">Add to bag</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function removeSoap(id) {
+      const item = soaps.find(s => s.id === id);
+      if (confirm(`Delete "${item ? item.name : 'this soap'}"?`)) {
+        soaps = soaps.filter(s => s.id !== id);
+        cart = cart.filter(c => c.id !== id);
+        updateCart();
+        renderCatalog();
+      }
+    }
+
+    /* ==========================================================================
+       CHAT
+       ========================================================================== */
+    function toggleChat() { document.getElementById("chat-drawer").classList.toggle("translate-x-full"); }
+    function sendChatMessage() {
+      const input = document.getElementById("chat-input");
+      const text = input.value.trim();
+      if(!text) return;
+      const chatBox = document.getElementById("chat-messages");
+      const userBubble = document.createElement("div");
+      userBubble.className = "text-white p-4 rounded-2xl shadow-sm max-w-[85%] text-sm self-end ml-auto";
+      userBubble.style.background = "var(--ink)";
+      userBubble.textContent = text;
+      chatBox.appendChild(userBubble);
+      input.value = "";
+
+      let recommended = soaps.find(s => text.toLowerCase().includes(s.type.toLowerCase())) || soaps[0];
+      setTimeout(() => {
+        const replyWrap = document.createElement("div");
+        replyWrap.className = "bg-white p-4 rounded-2xl shadow-sm border border-black/5 max-w-[85%] text-sm space-y-3";
+        replyWrap.innerHTML = `
+          <p>Based on that, try the <strong>${recommended.name}</strong>.</p>
+          <p class="text-xs opacity-60 leading-relaxed">${recommended.benefits}</p>
+          <button onclick="addToCart(${recommended.id}); toggleChat();" class="btn-clay text-xs px-4 py-2 rounded-lg transition active:scale-95">Add to bag — ${pkr(recommended.price)}</button>
+        `;
+        chatBox.appendChild(replyWrap);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }, 400);
+    }
+
+    /* ==========================================================================
+       CART
+       ========================================================================== */
+    function toggleCart() { document.getElementById("cart-drawer").classList.toggle("translate-x-full"); }
+    function addToCart(id) {
+      const item = soaps.find(s => s.id === id);
+      if (!item) return;
+      const existing = cart.find(c => c.id === id);
+      if(existing) existing.qty++;
+      else cart.push({ ...item, qty: 1 });
+      updateCart();
+    }
+    function updateCart() {
+      document.getElementById("cart-count").innerText = cart.reduce((a, b) => a + b.qty, 0);
+      const cartContainer = document.getElementById("cart-items");
+      if (cart.length === 0) {
+        cartContainer.innerHTML = `<div class="text-center py-16 opacity-40 text-sm">Your bag is empty.</div>`;
+      } else {
+        cartContainer.innerHTML = cart.map(item => `
+          <div class="flex justify-between items-center p-4 rounded-xl border border-black/10 bg-white/50">
+            <div>
+              <h5 class="font-bold text-sm">${item.name}</h5>
+              <p class="text-xs opacity-60 mt-0.5">${pkr(item.price)} × ${item.qty}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="changeQty(${item.id}, -1)" class="w-7 h-7 bg-white border border-black/10 rounded-lg text-sm font-bold shadow-sm active:scale-95 flex items-center justify-center">-</button>
+              <span class="text-xs font-bold w-4 text-center">${item.qty}</span>
+              <button onclick="changeQty(${item.id}, 1)" class="w-7 h-7 bg-white border border-black/10 rounded-lg text-sm font-bold shadow-sm active:scale-95 flex items-center justify-center">+</button>
+            </div>
+          </div>
+        `).join('');
+      }
+      const total = cart.reduce((a, b) => a + (b.price * b.qty), 0);
+      document.getElementById("cart-subtotal").innerText = pkr(total);
+    }
+    function changeQty(id, delta) {
+      const item = cart.find(c => c.id === id);
+      if(item) { item.qty += delta; if(item.qty <= 0) cart = cart.filter(c => c.id !== id); }
+      updateCart();
+    }
+
+    /* ==========================================================================
+       MODAL
+       ========================================================================== */
+    function showModal(contentHtml) {
+      document.getElementById("modal-content").innerHTML = contentHtml;
+      document.getElementById("modal-backdrop").classList.remove("hidden");
+      if (window.lucide) lucide.createIcons();
+    }
+    function closeModal() {
+      teardownTransactionScene();
+      document.getElementById("modal-backdrop").classList.add("hidden");
+    }
+
+    function openBatchModal() {
+      showModal(`
+        <div class="space-y-5">
+          <div class="flex justify-between items-center"><h3 class="font-display font-bold text-2xl">Batch verification</h3><button onclick="closeModal()" class="opacity-40 hover:opacity-80">✕</button></div>
+          <p class="text-xs opacity-60 leading-relaxed">Every bar is stamped with a lot code at the pour. Enter yours to confirm what's inside.</p>
+          <input id="batch-input" type="text" placeholder="e.g., LOT-2026-01" class="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+          <button onclick="searchBatch()" class="w-full btn-primary py-3.5 rounded-xl text-sm font-medium transition active:scale-95">Verify batch</button>
+          <div id="batch-results" class="text-xs transition"></div>
+        </div>
+      `);
+    }
+    function searchBatch() {
+      const val = document.getElementById("batch-input").value.trim();
+      const item = soaps.find(s => s.batch.toLowerCase() === val.toLowerCase());
+      const res = document.getElementById("batch-results");
+      if(item) {
+        res.innerHTML = `<div class="p-4 rounded-xl space-y-1" style="background:rgba(174,187,151,0.25); border:1px solid rgba(57,71,46,0.25); color:var(--moss-deep);"><strong>Verified —</strong> ${item.name}<br><span class="text-[11px] opacity-70">${item.ingredients}</span></div>`;
+      } else {
+        res.innerHTML = `<div class="p-4 rounded-xl" style="background:rgba(181,98,58,0.1); border:1px solid rgba(181,98,58,0.3); color:var(--clay-deep);">That lot code isn't in our registry.</div>`;
+      }
+    }
+
+    function openCheckout() {
+      if(cart.length === 0) return alert("Your bag is empty.");
+      const total = cart.reduce((a, b) => a + (b.price * b.qty), 0);
+      showModal(`
+        <div id="checkout-stage-form" class="space-y-5">
+          <div class="flex justify-between items-center"><h3 class="font-display font-bold text-2xl">Checkout</h3><button onclick="closeModal()" class="opacity-40 hover:opacity-80">✕</button></div>
+          <div class="flex justify-between items-center px-4 py-3 rounded-xl" style="background:rgba(57,71,46,0.08);">
+            <span class="text-sm opacity-60">Total due</span>
+            <span class="font-display font-bold text-xl">${pkr(total)}</span>
+          </div>
+          <form id="checkout-form" onsubmit="beginTransaction(event)" class="space-y-3.5">
+            <input type="text" required placeholder="Full name" class="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <input type="email" required placeholder="Email address" class="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <textarea required placeholder="Shipping address" class="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition h-24" style="--tw-ring-color: rgba(181,98,58,0.25);"></textarea>
+            <button type="submit" class="w-full btn-clay py-4 rounded-xl font-medium transition active:scale-95 shadow-lg">Pay ${pkr(total)}</button>
+          </form>
+        </div>
+
+        <div id="checkout-stage-processing" class="hidden space-y-4 text-center">
+          <h3 class="font-display font-bold text-2xl">Processing payment</h3>
+          <div id="tx-canvas-wrap" class="rounded-2xl overflow-hidden" style="background:linear-gradient(180deg, rgba(57,71,46,0.06), rgba(57,71,46,0.02));"></div>
+          <p id="tx-status-line" class="text-xs opacity-50 font-mono-data">stacking payment · Rs ${Math.round(total).toLocaleString('en-PK')}</p>
+        </div>
+
+        <div id="checkout-stage-success" class="hidden text-center py-6 space-y-4">
+          <div class="w-14 h-14 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-inner" style="background:rgba(174,187,151,0.35); color:var(--moss-deep);">✓</div>
+          <h3 class="font-display font-bold text-3xl">Order confirmed</h3>
+          <p class="text-xs opacity-60 max-w-xs mx-auto leading-relaxed">Rs ${Math.round(total).toLocaleString('en-PK')} received. Your batch codes ship with the bars.</p>
+          <button onclick="closeModal()" class="btn-primary px-8 py-3 rounded-xl text-xs font-medium transition active:scale-95">Back to the shop</button>
+        </div>
+      `);
+    }
+
+    function beginTransaction(e) {
+      e.preventDefault();
+      document.getElementById("checkout-stage-form").classList.add("hidden");
+      document.getElementById("checkout-stage-processing").classList.remove("hidden");
+      initTransactionScene(() => {
+        document.getElementById("checkout-stage-processing").classList.add("hidden");
+        document.getElementById("checkout-stage-success").classList.remove("hidden");
+        cart = [];
+        updateCart();
+      });
+    }
+
+    /* ==========================================================================
+       3D TRANSACTION ANIMATION — coins stack, then a "PAID" stamp lands
+       ========================================================================== */
+    let txRenderer, txAnimId = null;
+
+    function teardownTransactionScene() {
+      if (txAnimId) cancelAnimationFrame(txAnimId);
+      txAnimId = null;
+      if (txRenderer) {
+        txRenderer.dispose();
+        if (txRenderer.domElement && txRenderer.domElement.parentNode) {
+          txRenderer.domElement.parentNode.removeChild(txRenderer.domElement);
+        }
+      }
+      txRenderer = null;
+    }
+
+    function initTransactionScene(onComplete) {
+      teardownTransactionScene();
+      const wrap = document.getElementById("tx-canvas-wrap");
+      const statusLine = document.getElementById("tx-status-line");
+      if (!wrap || !window.THREE) { setTimeout(onComplete, 1200); return; }
+
+      const w = wrap.clientWidth, h = wrap.clientHeight || 220;
+      const txScene = new THREE.Scene();
+      const txCamera = new THREE.PerspectiveCamera(42, w / h, 0.1, 100);
+      txCamera.position.set(0, 3.4, 5.6);
+      txCamera.lookAt(0, 0, 0);
+
+      txRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      txRenderer.setSize(w, h);
+      txRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      wrap.appendChild(txRenderer.domElement);
+
+      txScene.add(new THREE.AmbientLight(0xffffff, 0.9));
+      const txKey = new THREE.DirectionalLight(0xffffff, 1.1);
+      txKey.position.set(3, 6, 4);
+      txScene.add(txKey);
+      const txRim = new THREE.PointLight(0xC79A4B, 1.6, 12);
+      txRim.position.set(-3, 2, -1);
+      txScene.add(txRim);
+
+      // Coin factory — cylinder with an "Rs" face texture
+      function makeCoinTexture() {
+        const c = document.createElement("canvas");
+        c.width = 128; c.height = 128;
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#C79A4B";
+        ctx.beginPath(); ctx.arc(64, 64, 62, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(64, 64, 54, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = "#171712";
+        ctx.font = "bold 40px serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("Rs", 64, 68);
+        return new THREE.CanvasTexture(c);
+      }
+      const coinFaceTex = makeCoinTexture();
+      const coinSideMat = new THREE.MeshStandardMaterial({ color: 0xC79A4B, metalness: 0.85, roughness: 0.3 });
+      const coinFaceMat = new THREE.MeshStandardMaterial({ map: coinFaceTex, metalness: 0.6, roughness: 0.35 });
+      const coinGeo = new THREE.CylinderGeometry(0.62, 0.62, 0.12, 32);
+
+      const COIN_COUNT = 12;
+      const coins = [];
+      for (let i = 0; i < COIN_COUNT; i++) {
+        const coin = new THREE.Mesh(coinGeo, [coinSideMat, coinFaceMat, coinFaceMat]);
+        coin.position.set((Math.random() - 0.5) * 3.2, 6 + i * 0.9, (Math.random() - 0.5) * 1.4);
+        coin.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+        coin.userData = {
+          targetY: -0.7 + i * 0.135,
+          targetX: (Math.random() - 0.5) * 0.35,
+          targetZ: (Math.random() - 0.5) * 0.35,
+          settled: false,
+          delay: i * 0.09
+        };
+        txScene.add(coin);
+        coins.push(coin);
+      }
+
+      // Ground disc
+      const groundGeo = new THREE.CylinderGeometry(2.4, 2.4, 0.06, 48);
+      const groundMat = new THREE.MeshStandardMaterial({ color: 0x39472E, roughness: 0.9 });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.position.y = -0.78;
+      txScene.add(ground);
+
+      // Stamp block, descends and punches down once coins are settled
+      const stampGeo = new THREE.BoxGeometry(1.7, 0.35, 1.7);
+      const stampMat = new THREE.MeshStandardMaterial({ color: 0x171712, metalness: 0.2, roughness: 0.5 });
+      const stamp = new THREE.Mesh(stampGeo, stampMat);
+      stamp.position.set(0, 8, 0);
+      txScene.add(stamp);
+
+      // Particle burst (small copper flecks) for the success beat
+      const PARTICLE_COUNT = 60;
+      const particleGeo = new THREE.BufferGeometry();
+      const particlePos = new Float32Array(PARTICLE_COUNT * 3);
+      const particleVel = [];
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        particlePos[i*3] = 0; particlePos[i*3+1] = 0.5; particlePos[i*3+2] = 0;
+        particleVel.push(new THREE.Vector3((Math.random()-0.5)*4, Math.random()*4+1.5, (Math.random()-0.5)*4));
+      }
+      particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
+      const particleMat = new THREE.PointsMaterial({ color: 0xC79A4B, size: 0.09, transparent: true, opacity: 0 });
+      const particles = new THREE.Points(particleGeo, particleMat);
+      txScene.add(particles);
+
+      const clock = new THREE.Clock();
+      let phase = "falling";
+      let phaseStart = 0;
+      let burstTriggered = false;
+
+      function statusFor(p) {
+        if (p === "falling") return "stacking coins…";
+        if (p === "stamping") return "stamping the ledger…";
+        if (p === "burst") return "payment confirmed";
+        return "";
+      }
+
+      function animate() {
+        txAnimId = requestAnimationFrame(animate);
+        const t = clock.getElapsedTime();
+
+        let allSettled = true;
+        coins.forEach(coin => {
+          if (t < coin.userData.delay) { allSettled = false; return; }
+          const dy = coin.userData.targetY - coin.position.y;
+          const dx = coin.userData.targetX - coin.position.x;
+          const dz = coin.userData.targetZ - coin.position.z;
+          if (Math.abs(dy) > 0.01 || Math.abs(dx) > 0.01 || Math.abs(dz) > 0.01) {
+            coin.position.y += dy * 0.14;
+            coin.position.x += dx * 0.1;
+            coin.position.z += dz * 0.1;
+            coin.rotation.x += dy < 0 ? 0.25 : 0;
+            allSettled = false;
+          } else {
+            coin.rotation.x += (0 - (coin.rotation.x % (Math.PI*2))) * 0.08;
+          }
+        });
+
+        if (phase === "falling" && allSettled) {
+          phase = "stamping";
+          phaseStart = t;
+          if (statusLine) statusLine.textContent = statusFor(phase);
+        }
+
+        if (phase === "stamping") {
+          const localT = t - phaseStart;
+          const descendT = Math.min(localT / 0.5, 1);
+          stamp.position.y = 8 + (0.9 - 8) * easeOutCubic(descendT);
+          if (localT > 0.55 && localT < 0.75) {
+            const punchT = (localT - 0.55) / 0.2;
+            stamp.scale.y = 1 - Math.sin(punchT * Math.PI) * 0.35;
+          } else if (localT >= 0.75) {
+            stamp.scale.y = 1;
+          }
+          if (localT > 0.9) {
+            phase = "burst";
+            phaseStart = t;
+            if (statusLine) statusLine.textContent = statusFor(phase);
+          }
+        }
+
+        if (phase === "burst") {
+          const localT = t - phaseStart;
+          if (!burstTriggered) { burstTriggered = true; particleMat.opacity = 1; }
+          const pos = particleGeo.attributes.position.array;
+          for (let i = 0; i < PARTICLE_COUNT; i++) {
+            pos[i*3]   += particleVel[i].x * 0.016;
+            pos[i*3+1] += (particleVel[i].y - localT * 3) * 0.016;
+            pos[i*3+2] += particleVel[i].z * 0.016;
+          }
+          particleGeo.attributes.position.needsUpdate = true;
+          particleMat.opacity = Math.max(0, 1 - localT * 1.2);
+
+          txCamera.position.y = 3.4 - localT * 0.3;
+
+          if (localT > 0.9) {
+            teardownTransactionScene();
+            if (onComplete) onComplete();
+            return;
+          }
+        }
+
+        txScene.rotation.y = Math.sin(t * 0.25) * 0.15;
+        txRenderer.render(txScene, txCamera);
+      }
+
+      function easeOutCubic(x) { return 1 - Math.pow(1 - x, 3); }
+
+      if (statusLine) statusLine.textContent = statusFor(phase);
+      animate();
+    }
+
+    function completeOrder() { /* retained for compatibility, flow now handled by beginTransaction */ }
+
+    /* ==========================================================================
+       ADMIN CONTROLS
+       ========================================================================== */
+    function toggleAdminPrompt() {
+      const key = prompt("Enter Special Admin Key:");
+      if(key === "aayan1111") {
+        isAdmin = true;
+        document.getElementById("admin-bar").classList.remove("hidden");
+        ['site-title', 'hero-tag', 'hero-heading', 'hero-sub'].forEach(id => {
+          const el = document.getElementById(id);
+          if(el) { el.contentEditable = "true"; el.classList.add("editable-active"); }
+        });
+        renderCatalog();
+      } else alert("Invalid key.");
+    }
+    function toggleAdminMode() {
+      isAdmin = false;
+      document.getElementById("admin-bar").classList.add("hidden");
+      ['site-title', 'hero-tag', 'hero-heading', 'hero-sub'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) { el.contentEditable = "false"; el.classList.remove("editable-active"); }
+      });
+      renderCatalog();
+    }
+    function checkImageEdit(imgEl, soapId) {
+      if(!isAdmin) return;
+      const newUrl = prompt("Enter new image URL:", imgEl.src);
+      if(newUrl) {
+        imgEl.src = newUrl;
+        if(soapId) { const soap = soaps.find(s => s.id === soapId); if(soap) soap.img = newUrl; }
+      }
+    }
+    function openAddSoapModal() {
+      showModal(`
+        <div class="space-y-4">
+          <div class="flex justify-between items-center"><h3 class="font-display font-bold text-2xl">Add a new soap</h3><button onclick="closeModal()" class="opacity-40 hover:opacity-80">✕</button></div>
+          <form onsubmit="saveNewSoap(event)" class="space-y-3">
+            <input id="new-name" required placeholder="Soap title" class="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <input id="new-type" required placeholder="Skin type (e.g., Oily, Dry)" class="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <input id="new-price" type="number" step="1" required placeholder="Price (Rs)" class="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <input id="new-ingredients" required placeholder="Ingredients" class="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <input id="new-benefits" required placeholder="Benefits" class="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <input id="new-batch" required placeholder="Batch code" class="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <input id="new-img" required placeholder="Image URL" class="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <button type="submit" class="w-full btn-primary py-3 rounded-xl font-medium transition active:scale-95 mt-2">Publish product</button>
+          </form>
+        </div>
+      `);
+    }
+    function saveNewSoap(e) {
+      e.preventDefault();
+      soaps.push({
+        id: Date.now(),
+        name: document.getElementById("new-name").value,
+        type: document.getElementById("new-type").value,
+        price: parseFloat(document.getElementById("new-price").value),
+        ingredients: document.getElementById("new-ingredients").value,
+        benefits: document.getElementById("new-benefits").value,
+        batch: document.getElementById("new-batch").value,
+        img: document.getElementById("new-img").value
+      });
+      renderCatalog();
+      closeModal();
+    }
+  </script>
+</body>
+</html>
