@@ -11,6 +11,9 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Firebase (compat SDK — works with plain <script> tags, no bundler needed) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -219,6 +222,44 @@
 
   <script>
     /* ==========================================================================
+       FIREBASE — shared cloud storage, so admin edits persist permanently and
+       are visible to every visitor (not just the browser that made them).
+       ========================================================================== */
+    const firebaseConfig = {
+      apiKey: "AIzaSyBxrOntRaiRImRpXOEY2viblR11bA38Dh4",
+      authDomain: "soap-store-567c2.firebaseapp.com",
+      projectId: "soap-store-567c2",
+      storageBucket: "soap-store-567c2.firebasestorage.app",
+      messagingSenderId: "324542127535",
+      appId: "1:324542127535:web:15f1675c00d154ee0025df"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const STORE_COLLECTION = "sova-store"; // Firestore collection holding one doc per key
+
+    // Drop-in replacements for the old window.storage.get/set calls — same
+    // {value} shape, so nothing else in the file below needs to change.
+    async function fsGet(key) {
+      try {
+        const snap = await db.collection(STORE_COLLECTION).doc(key).get();
+        if (snap.exists) return { value: snap.data().value };
+        return null;
+      } catch (err) {
+        console.error("Firestore read error for", key, err);
+        return null;
+      }
+    }
+    async function fsSet(key, value) {
+      try {
+        await db.collection(STORE_COLLECTION).doc(key).set({ value, updatedAt: Date.now() });
+        return { value };
+      } catch (err) {
+        console.error("Firestore write error for", key, err);
+        return null;
+      }
+    }
+
+    /* ==========================================================================
        STATE — prices are in PKR (whole rupees)
        ========================================================================== */
     let soaps = [
@@ -310,21 +351,21 @@
     }
 
     /* ==========================================================================
-       PERSISTENT STORAGE — admin edits are saved as shared store data, so every
+       PERSISTENT STORAGE — admin edits are saved to Firestore, so every
        visitor who opens this page sees the current catalog and site text.
        ========================================================================== */
     const EDITABLE_IDS = ['site-title', 'hero-tag', 'hero-heading', 'hero-sub'];
 
     async function saveSoaps() {
       try {
-        const result = await window.storage.set('soaps', JSON.stringify(soaps), true);
+        const result = await fsSet('soaps', JSON.stringify(soaps));
         if (!result) console.error('Failed to save catalog');
       } catch (err) { console.error('Storage error saving catalog:', err); }
     }
 
     async function saveGallery() {
       try {
-        const result = await window.storage.set('site-gallery', JSON.stringify(siteGallery), true);
+        const result = await fsSet('site-gallery', JSON.stringify(siteGallery));
         if (!result) console.error('Failed to save gallery');
       } catch (err) { console.error('Storage error saving gallery:', err); }
     }
@@ -333,7 +374,7 @@
       try {
         const data = { logo: document.getElementById('site-logo').src };
         EDITABLE_IDS.forEach(id => { data[id] = document.getElementById(id).innerHTML; });
-        const result = await window.storage.set('site-content', JSON.stringify(data), true);
+        const result = await fsSet('site-content', JSON.stringify(data));
         if (!result) console.error('Failed to save site content');
       } catch (err) { console.error('Storage error saving site content:', err); }
     }
@@ -348,7 +389,7 @@
 
     async function loadStoreData() {
       try {
-        const soapsResult = await window.storage.get('soaps', true);
+        const soapsResult = await fsGet('soaps');
         if (soapsResult && soapsResult.value) soaps = JSON.parse(soapsResult.value);
       } catch (err) {
         // no saved catalog yet — keep the defaults and persist them
@@ -356,7 +397,7 @@
       }
       soaps.forEach(s => { if (!s.imgs || !s.imgs.length) s.imgs = s.img ? [s.img] : []; });
       try {
-        const siteResult = await window.storage.get('site-content', true);
+        const siteResult = await fsGet('site-content');
         if (siteResult && siteResult.value) {
           const parsed = JSON.parse(siteResult.value);
           // One-time rebrand migration: only overwrite fields still holding the
@@ -371,7 +412,7 @@
         // no saved site content yet — nothing to apply
       }
       try {
-        const galleryResult = await window.storage.get('site-gallery', true);
+        const galleryResult = await fsGet('site-gallery');
         if (galleryResult && galleryResult.value) siteGallery = JSON.parse(galleryResult.value);
       } catch (err) {
         // no gallery yet — starts empty
