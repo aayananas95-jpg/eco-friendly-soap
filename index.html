@@ -98,7 +98,7 @@
   <div id="admin-bar" class="hidden text-white px-6 py-2.5 flex justify-between items-center text-sm sticky top-0 z-50 border-b border-white/10 shadow-lg" style="background:var(--moss-deep);">
     <div class="flex items-center gap-3">
       <span class="px-2.5 py-0.5 rounded-full font-mono-data text-[11px] font-bold" style="background:var(--clay); color:var(--linen);">Admin mode</span>
-      <span class="text-xs text-white/60 hidden sm:inline">Double-click text to edit &nbsp;·&nbsp; click a soap photo to manage its pictures &nbsp;·&nbsp; "+ Add photo" posts to the gallery</span>
+      <span class="text-xs text-white/60 hidden sm:inline">Double-click text to edit &nbsp;·&nbsp; click a soap photo to manage its pictures &nbsp;·&nbsp; use the pencil icon to edit a soap's details &nbsp;·&nbsp; "+ Add photo" posts to the gallery</span>
     </div>
     <div class="flex gap-3">
       <button onclick="document.getElementById('gallery-file-input').click()" class="bg-white/10 hover:bg-white/20 text-white px-3.5 py-1.5 rounded-lg text-xs font-medium active:scale-95 transition">+ Add photo</button>
@@ -275,6 +275,16 @@
     let pendingNewSoapImgs = []; // photos staged in the "Add soap" form before publish
 
     function pkr(n){ return "Rs " + Math.round(n).toLocaleString('en-PK'); }
+
+    // Small helper so soap values can be safely dropped into HTML attributes
+    // (e.g. an <input value="..."> in the edit form) without breaking markup.
+    function escapeHtmlAttr(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
 
     /* ==========================================================================
        IMAGE UPLOADS — files are resized/compressed client-side before saving so
@@ -665,9 +675,14 @@
         return `
         <div class="card-ticket rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col group relative">
           ${isAdmin ? `
-            <button onclick="removeSoap(${soap.id})" class="absolute top-4 right-4 z-20 bg-rose-700 hover:bg-rose-800 text-white p-2 rounded-lg shadow-lg transition active:scale-90 flex items-center justify-center gap-1 text-xs font-semibold">
-              <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>
+            <div class="absolute top-4 right-4 z-20 flex gap-2">
+              <button onclick="openEditSoapModal(${soap.id})" class="bg-white/90 hover:bg-white p-2 rounded-lg shadow-lg transition active:scale-90 flex items-center justify-center gap-1 text-xs font-semibold" style="color:var(--ink);">
+                <i data-lucide="pencil" class="w-4 h-4"></i>
+              </button>
+              <button onclick="removeSoap(${soap.id})" class="bg-rose-700 hover:bg-rose-800 text-white p-2 rounded-lg shadow-lg transition active:scale-90 flex items-center justify-center gap-1 text-xs font-semibold">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
           ` : ''}
           <div class="relative overflow-hidden h-60" style="background:var(--linen-2);">
             ${hasImgs ? `<img src="${imgs[idx]}" class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-700 ${!isAdmin && imgs.length > 1 ? 'cursor-pointer' : ''}" ${!isAdmin && imgs.length > 1 ? `onclick="cycleSoapImage(${soap.id}, 1)"` : ''}>` : `<div class="h-full w-full flex items-center justify-center text-xs opacity-30">No photo yet</div>`}
@@ -776,6 +791,43 @@
         renderCatalog();
         saveSoaps();
       }
+    }
+
+    /* ==========================================================================
+       EDIT SOAP — lets admin update an already-published soap's details
+       ========================================================================== */
+    function openEditSoapModal(soapId) {
+      const soap = soaps.find(s => s.id === soapId);
+      if (!soap) return;
+      showModal(`
+        <div class="space-y-4">
+          <div class="flex justify-between items-center"><h3 class="font-display font-bold text-2xl">Edit soap</h3><button onclick="closeModal()" class="opacity-40 hover:opacity-80">✕</button></div>
+          <form onsubmit="saveEditedSoap(event, ${soap.id})" class="space-y-3">
+            <input id="edit-name" required placeholder="Soap title" value="${escapeHtmlAttr(soap.name)}" class="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <input id="edit-type" required placeholder="Skin type (e.g., Oily, Dry)" value="${escapeHtmlAttr(soap.type)}" class="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <input id="edit-price" type="number" step="1" required placeholder="Price (Rs)" value="${soap.price}" class="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <input id="edit-ingredients" required placeholder="Ingredients" value="${escapeHtmlAttr(soap.ingredients)}" class="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <input id="edit-benefits" required placeholder="Benefits" value="${escapeHtmlAttr(soap.benefits)}" class="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <input id="edit-batch" required placeholder="Batch code" value="${escapeHtmlAttr(soap.batch)}" class="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none focus:ring-2 transition" style="--tw-ring-color: rgba(181,98,58,0.25);">
+            <button type="button" onclick="closeModal(); openManageImages(${soap.id});" class="w-full border border-black/15 py-2.5 rounded-xl text-xs font-medium opacity-70 hover:opacity-100 transition">Manage photos</button>
+            <button type="submit" class="w-full btn-primary py-3 rounded-xl font-medium transition active:scale-95 mt-2">Save changes</button>
+          </form>
+        </div>
+      `);
+    }
+    function saveEditedSoap(e, soapId) {
+      e.preventDefault();
+      const soap = soaps.find(s => s.id === soapId);
+      if (!soap) return;
+      soap.name = document.getElementById("edit-name").value;
+      soap.type = document.getElementById("edit-type").value;
+      soap.price = parseFloat(document.getElementById("edit-price").value);
+      soap.ingredients = document.getElementById("edit-ingredients").value;
+      soap.benefits = document.getElementById("edit-benefits").value;
+      soap.batch = document.getElementById("edit-batch").value;
+      renderCatalog();
+      saveSoaps();
+      closeModal();
     }
 
     /* ==========================================================================
